@@ -21,13 +21,14 @@ from utils.dc_utils import read_video_frames, save_video
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Video Depth Anything')
-    parser.add_argument('--input_video', type=str, default='./assets/example_videos/davis_rollercoaster.mp4')
+    # parser.add_argument('--input_video', type=str, default='./assets/example_videos/davis_rollercoaster.mp4')
+    parser.add_argument('--input_frames', type=str, default='./assets/example_videos/davis_rollercoaster/rgb')
     parser.add_argument('--output_dir', type=str, default='./outputs')
     parser.add_argument('--input_size', type=int, default=518)
     parser.add_argument('--max_res', type=int, default=1280)
     parser.add_argument('--encoder', type=str, default='vitl', choices=['vits', 'vitl'])
     parser.add_argument('--max_len', type=int, default=-1, help='maximum length of the input video, -1 means no limit')
-    parser.add_argument('--target_fps', type=int, default=-1, help='target fps of the input video, -1 means the original fps')
+    parser.add_argument('--target_fps', type=int, default=24, help='target fps of the input video, -1 means the original fps')
     parser.add_argument('--fp32', action='store_true', help='model infer with torch.float32, default is torch.float16')
     parser.add_argument('--grayscale', action='store_true', help='do not apply colorful palette')
     parser.add_argument('--save_npz', action='store_true', help='save depths as npz')
@@ -46,7 +47,9 @@ if __name__ == '__main__':
     video_depth_anything.load_state_dict(torch.load(f'./checkpoints/video_depth_anything_{args.encoder}.pth', map_location='cpu'), strict=True)
     video_depth_anything = video_depth_anything.to(DEVICE).eval()
 
-    frames, target_fps = read_video_frames(args.input_video, args.max_len, args.target_fps, args.max_res)
+    # frames, target_fps = read_video_frames(args.input_video, args.max_len, args.target_fps, args.max_res)
+    frames = ...
+    target_fps = args.target_fps
     depths, fps = video_depth_anything.infer_video_depth(frames, target_fps, input_size=args.input_size, device=DEVICE, fp32=args.fp32)
     
     video_name = os.path.basename(args.input_video)
