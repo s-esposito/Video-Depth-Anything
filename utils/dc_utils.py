@@ -6,15 +6,42 @@
 import numpy as np
 import matplotlib.cm as cm
 import imageio
+import os
+import cv2
 try:
     from decord import VideoReader, cpu
     DECORD_AVAILABLE = True
 except:
-    import cv2
     DECORD_AVAILABLE = False
 
 def ensure_even(value):
     return value if value % 2 == 0 else value + 1
+
+
+def read_frames_from_folder(folder_path, max_res=-1):
+
+    frames = []
+    # list files in the folder (.png or .jpg)
+    files = [f for f in sorted(os.listdir(folder_path)) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    # sort files by name
+    files.sort()
+    # check if files is empty
+    if not files:
+        raise ValueError(f"No image files found in the folder: {folder_path}")
+    for file_path in files:
+        frame = cv2.imread(os.path.join(folder_path, file_path))
+        original_height, original_width = frame.shape[:2]
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+        if max_res > 0 and max(original_height, original_width) > max_res:
+            scale = max_res / max(original_height, original_width)
+            height = ensure_even(round(original_height * scale))
+            width = ensure_even(round(original_width * scale))
+            frame = cv2.resize(frame, (width, height))  # Resize frame
+        frames.append(frame)
+    frames = np.stack(frames, axis=0)  # (N, H, W, C)
+    width = frames.shape[2]
+    return frames, width
+
 
 def read_video_frames(video_path, process_length, target_fps=-1, max_res=-1):
     if DECORD_AVAILABLE:
@@ -26,6 +53,8 @@ def read_video_frames(video_path, process_length, target_fps=-1, max_res=-1):
             scale = max_res / max(original_height, original_width)
             height = ensure_even(round(original_height * scale))
             width = ensure_even(round(original_width * scale))
+        else:
+            width = original_width
 
         vid = VideoReader(video_path, ctx=cpu(0), width=width, height=height)
 
@@ -46,6 +75,8 @@ def read_video_frames(video_path, process_length, target_fps=-1, max_res=-1):
             scale = max_res / max(original_height, original_width)
             height = round(original_height * scale)
             width = round(original_width * scale)
+        else:
+            width = original_width
 
         fps = original_fps if target_fps < 0 else target_fps
 
@@ -66,7 +97,7 @@ def read_video_frames(video_path, process_length, target_fps=-1, max_res=-1):
         cap.release()
         frames = np.stack(frames, axis=0)
 
-    return frames, fps
+    return frames, fps, width
 
 
 def save_video(frames, output_video_path, fps=10, is_depths=False, grayscale=False):
