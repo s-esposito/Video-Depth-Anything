@@ -25,13 +25,13 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default='./outputs')
     parser.add_argument('--input_size', type=int, default=518)
     parser.add_argument('--max_res', type=int, default=-1)
+    parser.add_argument('--seq_len', type=int, default=-1, help='number of video frames to process, -1 means all frames')
     parser.add_argument('--encoder', type=str, default='vitl', choices=['vits', 'vitl'])
     # parser.add_argument('--max_len', type=int, default=-1, help='maximum length of the input video, -1 means no limit')
     parser.add_argument('--target_fps', type=int, default=24, help='target fps of the input video, -1 means the original fps')
     parser.add_argument('--fp32', action='store_true', help='model infer with torch.float32, default is torch.float16')
     parser.add_argument('--grayscale', action='store_true', help='do not apply colorful palette')
     parser.add_argument('--save_npz', action='store_true', help='save depths as npz')
-    parser.add_argument('--save_exr', action='store_true', help='save depths as exr')
 
     args = parser.parse_args()
 
@@ -59,34 +59,27 @@ if __name__ == '__main__':
         print(f"Reading video from file: {args.input_video}")
         frames, target_fps, max_res = read_video_frames(args.input_video, args.max_len, args.target_fps, args.max_res)
     
+    if args.seq_len == -1:
+        args.seq_len = len(frames)
+    else:
+        frames = frames[:args.seq_len]
+
     depths, fps = video_depth_anything.infer_video_depth(frames, target_fps, input_size=args.input_size, device=DEVICE, fp32=args.fp32)
     
     video_name = os.path.basename(args.input_video)
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    output_dir = os.path.join(args.output_dir, video_name)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    processed_video_path = os.path.join(args.output_dir, os.path.splitext(video_name)[0]+'_affine_src.mp4')
-    depth_vis_path = os.path.join(args.output_dir, os.path.splitext(video_name)[0]+'_affine_vis.mp4')
+    processed_video_path = os.path.join(output_dir, 'affine_src.mp4')
+    depth_vis_path = os.path.join(output_dir, 'affine_vis.mp4')
     save_video(frames, processed_video_path, fps=fps)
     save_video(depths, depth_vis_path, fps=fps, is_depths=True, grayscale=args.grayscale)
 
     if args.save_npz:
-        depth_npz_path = os.path.join(args.output_dir, os.path.splitext(video_name)[0]+'_affine_depths.npz')
+        # depth_npz_path = os.path.join(output_dir, os.path.splitext(video_name)[0]+'_affine_depths.npz')
+        depth_npz_path = os.path.join(output_dir, 'video_depth_anything.npz')
         np.savez_compressed(depth_npz_path, depths=depths)
-    if args.save_exr:
-        depth_exr_dir = os.path.join(args.output_dir, os.path.splitext(video_name)[0]+'_affine_depths_exr')
-        os.makedirs(depth_exr_dir, exist_ok=True)
-        import OpenEXR
-        import Imath
-        for i, depth in enumerate(depths):
-            output_exr = f"{depth_exr_dir}/frame_{i:05d}.exr"
-            header = OpenEXR.Header(depth.shape[1], depth.shape[0])
-            header["channels"] = {
-                "Z": Imath.Channel(Imath.PixelType(Imath.PixelType.FLOAT))
-            }
-            exr_file = OpenEXR.OutputFile(output_exr, header)
-            exr_file.writePixels({"Z": depth.tobytes()})
-            exr_file.close()
 
     
 
